@@ -1,0 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  BASE_COMMANDER
+  LOGISTICS_OFFICER
+}
+
+enum TransferStatus {
+  COMPLETED
+}
+
+enum AssignmentStatus {
+  ACTIVE
+  RETURNED
+}
+
+model Base {
+  id                    Int            @id @default(autoincrement())
+  name                  String
+  location              String
+  users                 User[]
+  purchases             Purchase[]
+  sourceTransfers       Transfer[]     @relation("SourceBase")
+  destinationTransfers  Transfer[]     @relation("DestinationBase")
+  assignments           Assignment[]
+  expenditures          Expenditure[]
+  createdAt             DateTime       @default(now())
+}
+
+model User {
+  id              Int           @id @default(autoincrement())
+  username        String        @unique
+  passwordHash    String
+  role            UserRole
+  baseId          Int?
+  base            Base?         @relation(fields: [baseId], references: [id], onDelete: SetNull)
+  purchases       Purchase[]
+  transfers       Transfer[]
+  assignments     Assignment[]
+  expenditures    Expenditure[]
+  auditLogs       AuditLog[]
+  createdAt       DateTime      @default(now())
+
+  @@index([baseId])
+}
+
+model EquipmentType {
+  id             Int           @id @default(autoincrement())
+  name           String
+  category       String
+  purchases      Purchase[]
+  transfers      Transfer[]
+  assignments    Assignment[]
+  expenditures   Expenditure[]
+
+  @@index([category])
+}
+
+model Purchase {
+  id               Int           @id @default(autoincrement())
+  baseId           Int
+  equipmentTypeId  Int
+  quantity         Int
+  purchaseDate     DateTime      @default(now())
+  createdAt        DateTime      @default(now())
+  createdById      Int
+  base             Base          @relation(fields: [baseId], references: [id])
+  equipmentType    EquipmentType @relation(fields: [equipmentTypeId], references: [id])
+  createdBy        User          @relation(fields: [createdById], references: [id])
+
+  @@index([baseId, equipmentTypeId, purchaseDate])
+  @@index([createdAt])
+}
+
+model Transfer {
+  id                 Int            @id @default(autoincrement())
+  sourceBaseId       Int
+  destinationBaseId  Int
+  equipmentTypeId    Int
+  quantity           Int
+  status             TransferStatus @default(COMPLETED)
+  transferDate       DateTime       @default(now())
+  initiatedById      Int
+  sourceBase         Base           @relation("SourceBase", fields: [sourceBaseId], references: [id])
+  destinationBase    Base           @relation("DestinationBase", fields: [destinationBaseId], references: [id])
+  equipmentType      EquipmentType  @relation(fields: [equipmentTypeId], references: [id])
+  initiatedBy        User           @relation(fields: [initiatedById], references: [id])
+
+  @@index([sourceBaseId, equipmentTypeId, transferDate])
+  @@index([destinationBaseId, equipmentTypeId, transferDate])
+}
+
+model Assignment {
+  id               Int              @id @default(autoincrement())
+  baseId           Int
+  equipmentTypeId  Int
+  quantity         Int
+  assignedTo       String
+  status           AssignmentStatus @default(ACTIVE)
+  assignedDate     DateTime         @default(now())
+  createdById      Int
+  base             Base             @relation(fields: [baseId], references: [id])
+  equipmentType    EquipmentType    @relation(fields: [equipmentTypeId], references: [id])
+  createdBy        User             @relation(fields: [createdById], references: [id])
+
+  @@index([baseId, equipmentTypeId, assignedDate])
+}
+
+model Expenditure {
+  id               Int           @id @default(autoincrement())
+  baseId           Int
+  equipmentTypeId  Int
+  quantity         Int
+  reason           String
+  expendedDate     DateTime      @default(now())
+  createdById      Int
+  base             Base          @relation(fields: [baseId], references: [id])
+  equipmentType    EquipmentType @relation(fields: [equipmentTypeId], references: [id])
+  createdBy        User          @relation(fields: [createdById], references: [id])
+
+  @@index([baseId, equipmentTypeId, expendedDate])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  action     String
+  details    String
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
